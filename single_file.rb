@@ -1,3 +1,20 @@
+class String
+  def lstrip_char(char)
+    new_str = ""
+    still_stripping = true
+    self.chars.each do |c|
+      if still_stripping
+        if c == char
+          next
+        end
+        still_stripping = false
+      end
+      new_str += c
+    end
+    new_str
+  end
+end
+
 class Array
   def to_table
     output = ""
@@ -27,6 +44,27 @@ class Array
   end
 end
 
+MONTHS_DAY_LENGTHS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+# returns month (1..12) from yday
+def g_month(day_of_year)
+  month = 0
+  while day_of_year > 0
+    day_of_year -= MONTHS_DAY_LENGTHS[month]
+    month += 1
+  end
+  month
+end
+
+# returns day of month (1..31) from yday
+def g_day(day_of_year)
+  month = 0
+  while day_of_year > 0
+    day_of_year -= MONTHS_DAY_LENGTHS[month]
+    month += 1
+  end
+  day_of_year + MONTHS_DAY_LENGTHS[month-1]
+end
+
 require "json"
 require "date_core"
 
@@ -43,7 +81,7 @@ messages_per_month = []
 end
 
 messages_per_day = []
-365.times do
+366.times do
   messages_per_day << 0
 end
 
@@ -60,11 +98,18 @@ file_json.each do |message|
   # 
   # {"ID": int, "Timestamp": "2024-11-17 11:59:46", "Contents": "abcdef", "Attachments": ""},
   #
-  timestamp = DateTime.parse(message["Timestamp"])
+  timestamp = DateTime.parse(message["Timestamp"]) + TIMEZONE / 24.0
   contents = message["Contents"]
 
   messages_per_month[(timestamp.month()+11)%12] += 1
-  messages_per_day[(timestamp.yday()+364)%365] += 1
+  # LEAP DAY TAKES INDEX 60
+  # ALL OTHER DAYS ARE OFFSET ONE TO THE RIGHT :)
+  messages_per_day[(
+    (Date.leap?(timestamp.year) ?
+      ((timestamp.yday() > 60) ? 0 : 364)
+      : 0
+    ) + timestamp.yday()+365)%366
+  ] += 1
   messages_per_hour[(timestamp.hour()+23+TIMEZONE)%24] += 1
 
   # ignore messages including only attachments in msglen calculations
@@ -100,7 +145,6 @@ message_length_occurences = Hash.new(0)
 message_lengths.each do |msg_len|
   message_length_occurences[msg_len] += 1
 end
-p message_length_occurences
 
 most_frequent_message_lengths = []
 most_frequent_message_length_occurences = []
@@ -147,7 +191,7 @@ puts(
 puts()
 puts("Messages per day of year:")
 puts(
-  [(1..365).to_a,
+  [(1..366).map { |day_of_year| Date.new(2024, g_month(day_of_year), g_day(day_of_year)).to_s.split("-")[1..2].reverse!.map { |s| s.lstrip_char("0") }.join(".") }.to_a,
   messages_per_day].to_table
 )
 puts()

@@ -106,7 +106,7 @@ file_json.each do |message|
   # ALL OTHER DAYS ARE OFFSET ONE TO THE RIGHT :)
   messages_per_day[(
     (Date.leap?(timestamp.year) ?
-      ((timestamp.yday() > 60) ? 0 : 364)
+      ((timestamp.yday() > 60) ? 365 : 364)
       : 0
     ) + timestamp.yday()+365)%366
   ] += 1

@@ -30,6 +30,8 @@ end
 require "json"
 require "date_core"
 
+TIMEZONE = Time.now.utc_offset/60/60
+
 file = File.read("messages.json")
 
 file_json = JSON.parse(file)
@@ -57,7 +59,7 @@ file_json.each do |message|
 
   messages_per_month[(timestamp.month()+11)%12] += 1
   messages_per_day[(timestamp.yday()+364)%365] += 1
-  messages_per_hour[(timestamp.hour()+23)%24] += 1
+  messages_per_hour[(timestamp.hour()+23+TIMEZONE)%24] += 1
   
   messages_per_year[timestamp.year()] = 1 + (messages_per_year[timestamp.year()] || 0)
 end

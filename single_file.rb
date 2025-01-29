@@ -30,7 +30,8 @@ end
 require "json"
 require "date_core"
 
-TIMEZONE = Time.now.utc_offset/60/60
+MOST_FREQ_MSG_LEN_COUNT = 10
+TIMEZONE = Time.now.utc_offset/60/60 # still works with non-1h timezones, integer division
 
 file = File.read("messages.json")
 
@@ -51,17 +52,27 @@ messages_per_hour = []
   messages_per_hour << 0
 end
 
-messages_per_year = {}
+messages_per_year = Hash.new(0) # default value 0
 
+message_lengths = []
 
 file_json.each do |message|
+  # 
+  # {"ID": int, "Timestamp": "2024-11-17 11:59:46", "Contents": "abcdef", "Attachments": ""},
+  #
   timestamp = DateTime.parse(message["Timestamp"])
+  contents = message["Contents"]
 
   messages_per_month[(timestamp.month()+11)%12] += 1
   messages_per_day[(timestamp.yday()+364)%365] += 1
   messages_per_hour[(timestamp.hour()+23+TIMEZONE)%24] += 1
-  
-  messages_per_year[timestamp.year()] = 1 + (messages_per_year[timestamp.year()] || 0)
+
+  # ignore messages including only attachments in msglen calculations
+  if contents.length() > 0
+    message_lengths << contents.length()
+  end
+
+  messages_per_year[timestamp.year()] += 1
 end
 
 
@@ -78,11 +89,55 @@ end
 
 years = []
 (begin_year..end_year).each do |year|
-  years << (messages_per_year[year] || 0)
+  years << messages_per_year[year]
+end
+
+message_lengths.sort!
+average_message_length = message_lengths.sum / message_lengths.size
+median_message_length = message_lengths[message_lengths.size / 2]
+
+message_length_occurences = Hash.new(0)
+message_lengths.each do |msg_len|
+  message_length_occurences[msg_len] += 1
+end
+p message_length_occurences
+
+most_frequent_message_lengths = []
+most_frequent_message_length_occurences = []
+
+MOST_FREQ_MSG_LEN_COUNT.times do
+  most_frequent_message_lengths << 0
+  most_frequent_message_length_occurences << 0
+end
+
+message_length_occurences.each do |msglen, occurences|
+  idx = 0
+  while idx < MOST_FREQ_MSG_LEN_COUNT && most_frequent_message_length_occurences[idx] > occurences
+    idx += 1
+  end
+  if idx == MOST_FREQ_MSG_LEN_COUNT
+    next
+  end
+
+  most_frequent_message_lengths.insert(idx, msglen)
+  most_frequent_message_length_occurences.insert(idx, occurences)
+
+  most_frequent_message_lengths = most_frequent_message_lengths[0...MOST_FREQ_MSG_LEN_COUNT]
+  most_frequent_message_length_occurences = most_frequent_message_length_occurences[0...MOST_FREQ_MSG_LEN_COUNT]
 end
 
 
+
 puts("Total messages: #{file_json.length()}")
+puts()
+puts("Message length averages:")
+puts("Average: #{average_message_length.round(2)}")
+puts("Median: #{median_message_length}")
+puts("Most sent message lengths:")
+puts(
+  [most_frequent_message_lengths,
+  most_frequent_message_length_occurences].to_table
+)
 puts()
 puts("Messages by year:")
 puts(
